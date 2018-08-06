@@ -1,0 +1,1 @@
+@node --trace-warnings %~dp0\index.js %*

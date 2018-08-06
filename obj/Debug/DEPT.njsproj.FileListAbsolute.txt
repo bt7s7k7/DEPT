@@ -1,0 +1,3 @@
+D:\deti\Git\DEPT\DEPT\obj\Debug\DEPT.njsprojResolveAssemblyReference.cache
+D:\deti\Git\DEPT\DEPT\obj\Debug\DEPT.njsproj.CoreCompileInputs.cache
+D:\deti\Git\DEPT\DEPT\bin\Microsoft.NodejsTools.WebRole.dll

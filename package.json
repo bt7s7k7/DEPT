@@ -1,0 +1,11 @@
+{
+  "name": "dept",
+  "version": "1.0.0",
+  "description": "Data Extraction and Processing Tool",
+  "main": "dept.bat",
+  "scripts": {
+    "test": "echo test"
+  },
+  "author": "bt7s7k7",
+  "license": "GPL-3.0"
+}
