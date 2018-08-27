@@ -7,13 +7,14 @@ const B = require("bUtils")
 const repl = require("repl")
 const fs = require("fs")
 const util = require("util")
+const http = require("http")
 
 var context
 var history = []
 var typeFileSeparator = "\n─────────────────────────────────────────\n"
 var maxChars = 10000
 function inspect(thing) {
-	return util.inspect(thing, {colors: true}).substr(0, maxChars)
+	return util.inspect(thing, { colors: true }).substr(0, maxChars)
 }
 
 function Data(value = []) {
@@ -60,10 +61,15 @@ Object.assign(Data.prototype, {
 		return new MassData(this.value.map(v => new Data(v instanceof Array ? v : [v])))
 	},
 	splice(at, number = 1) {
-		return new Data(this.value.copy.splice(at, number))
+		var newdata = this.value.copy()
+		newdata.splice(at, number)
+		return new Data(newdata)
 	},
 	at(index) {
 		return new Data([this.value[index]])
+	},
+	last() {
+		return new Data([this.value.last()])
 	},
 	replace(...args) {
 		return new Data(this.value.map(v => v.replace(...args)))
@@ -77,8 +83,11 @@ Object.assign(Data.prototype, {
 	map(func) {
 		return new Data(this.value.map(func))
 	},
+	filter(func) {
+		return new Data(this.value.filter(func))
+	},
 	join(delim) {
-		return new Data([this.join(delim)])
+		return new Data([this.value.join(delim)])
 	},
 	writeFile(path) {
 		fs.writeFile(path, this.value.join("\u001f"), (err) => {
@@ -146,6 +155,36 @@ Object.assign(Data.prototype, {
 	},
 	reverse() {
 		return new Data(this.value.copy().reverse())
+	},
+	slice(begin, end = Infinity) {
+		return new Data(this.value.slice(begin, end))
+	},
+	writefile(path) {
+		fs.writeFile(path, this.value.join(typeFileSeparator), (err) => {
+			B.write("\rFile " + path + " written\n> ")
+		})
+		return this;
+	},
+	request() {
+		return new DataPromise(Promise.all(this.value.map(v => new Promise((resolve, reject) => {
+			http.get(v, (res) => {
+				const { statusCode } = res;
+				const contentType = res.headers['content-type'];
+
+				if (statusCode !== 200) {
+					reject('Request Failed.\n' +
+						`Status Code: ${statusCode}`);
+					return;
+				}
+
+				res.setEncoding('utf8');
+				let rawData = '';
+				res.on('data', (chunk) => { rawData += chunk; });
+				res.on('end', () => {
+					resolve(rawData);
+				});
+			}).on("error", err => reject(err))
+		}))))
 	}
 })
 
@@ -153,7 +192,7 @@ function DataPromise(promise) {
 	this.promise = promise
 }
 
-Data.prototype.toArray().forEach(v => {
+[...Data.prototype.toArray(), { key: "end" }].forEach(v => {
 	DataPromise.prototype[v.key] = function (...args) {
 		return new DataPromise(new Promise((resolve, reject) => {
 			var handler = (data) => {
@@ -161,13 +200,19 @@ Data.prototype.toArray().forEach(v => {
 					data.promise.then(handler, (err) => reject(err))
 				} else if (data instanceof Promise) {
 					data.then(handler, (err) => reject(err))
-				} else if (data instanceof Data) {
+				} else if (data instanceof Data || data instanceof MassData) {
 					try {
-						resolve(v.value.apply(data, args))
+						resolve(data[v.key](...args))
 					} catch (err) {
 						reject(err)
 					}
-				} else throw new Error("Invalid type returned from data functions:" + inspect(data))
+				} else if (data instanceof Array) {
+					try {
+						resolve((new Data(data))[v.key](...args))
+					} catch (err) {
+						reject(err)
+					}
+				} else reject(new Error("Invalid type returned from data functions:" + inspect(data)))
 			}
 
 			handler(this.promise)
